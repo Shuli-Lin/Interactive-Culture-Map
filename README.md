@@ -93,7 +93,7 @@ Users can click any province on the map to view its representative folk song, ma
 ### 🌏 项目结构 | Project Structure
 
 ```
-china-culture-dashboard/
+Interactive-Culture-Map/
 │
 ├── app.R                     # Shiny 主程序
 ├── data/
