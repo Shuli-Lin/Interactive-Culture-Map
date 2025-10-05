@@ -1,6 +1,4 @@
 # app.R
-install.packages("readxl")
-
 library(shiny)
 library(leaflet)
 library(sf)
@@ -59,9 +57,7 @@ china <- china %>%
     TRUE ~ shapeName # 默认保留原名
   ))
 
-# Check the result
-head(china[, c("shapeName", "Province_CN")])
-head(china)
+
 # Read provinces information
 province_info <- read_excel("data/province_info.xlsx")
 head(province_info)
@@ -70,11 +66,9 @@ head(province_info)
 china_data <- china %>%
   left_join(province_info, by = "Province_CN")
 
-st_write(china, "data/china_provinces_corrected.geojson")
-
 civilization_table <- read_excel("data/civilization.xlsx")
 china_civilization <- left_join(china, civilization_table, by = "Province_CN")
-st_write(china_civilization, "data/china_civilization.geojson", delete_dsn = TRUE)
+
 
 ui <- dashboardPage(
   dashboardHeader(title = "中国地方文化地图"),
@@ -119,20 +113,20 @@ ui <- dashboardPage(
 # -------------------------------
 # 3️⃣ 服务器逻辑
 # -------------------------------
-# 让Shiny知道音频文件在哪
-addResourcePath("audio", "data/audio")
 
-output$audio_player <- renderUI({
-  tags$audio(
-    controls = TRUE,
-    src = paste0("audio/", info$AudioFile),
-    type = "audio/mp3"
-  )
-})
 
 server <- function(input, output, session) {
   
   # 民歌地图
+  
+  output$audio_player <- renderUI({
+    tags$audio(
+      controls = TRUE,
+      src = paste0("audio/", info$AudioFile),
+      type = "audio/mp3"
+    )
+  })
+  
   output$folkMap <- renderLeaflet({
     leaflet(china_data) %>%
       addTiles() %>%
@@ -156,7 +150,7 @@ server <- function(input, output, session) {
     output$audio_player <- renderUI({
       tags$audio(
         controls = TRUE,
-        src = paste0("data/audio/", info$AudioFile),
+        src = paste0("audio/", info$AudioFile),
         type = "audio/mp3"
       )
     })
@@ -167,7 +161,7 @@ server <- function(input, output, session) {
     leaflet(china_civilization) %>%
       addTiles() %>%
       addPolygons(
-        fillColor = "lightblue",
+        fillColor = "blue",
         color = "white",
         weight = 1,
         opacity = 1,
