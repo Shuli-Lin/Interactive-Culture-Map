@@ -1,14 +1,25 @@
 # app.R
+install.packages("readxl")
+
 library(shiny)
 library(leaflet)
 library(sf)
 library(dplyr)
-
+library(readxl)
+library(shinydashboard)
 # Read China Province Map 
-china <- st_read("C:/Users/15124/Downloads/china_provinces.geojson")
+china <- st_read("data/china_provinces.geojson")
 names(china)
 head(china)
+corrections <- c(
+  "Guangzhou Province" = "Guangdong Province",
+  "Ningxia Ningxia Hui Autonomous Region" = "Ningxia Hui Autonomous Region"
+)
 
+china <- china %>%
+  mutate(shapeName = ifelse(shapeName %in% names(corrections),
+                            corrections[match(shapeName, names(corrections))],
+                            shapeName))
 china <- china %>%
   mutate(Province_CN = case_when(
     shapeName == "Anhui Province" ~ "安徽省",
@@ -50,69 +61,139 @@ china <- china %>%
 
 # Check the result
 head(china[, c("shapeName", "Province_CN")])
+head(china)
+# Read provinces information
+province_info <- read_excel("data/province_info.xlsx")
+head(province_info)
 
+# Combine the info-table with shp file
+china_data <- china %>%
+  left_join(province_info, by = "Province_CN")
 
+st_write(china, "data/china_provinces_corrected.geojson")
 
-# 合并信息
-china_data <- left_join(china, province_info, by = "NAME_1")
+civilization_table <- read_excel("data/civilization.xlsx")
+china_civilization <- left_join(china, civilization_table, by = "Province_CN")
+st_write(china_civilization, "data/china_civilization.geojson", delete_dsn = TRUE)
 
-# -----------------------
-# 2. Shiny界面
-# -----------------------
-ui <- fluidPage(
-  titlePanel("Interactive Chinese Cultural Map"),
-  sidebarLayout(
-    sidebarPanel(
-      h4("Province Info"),
-      textOutput("province_name"),
-      textOutput("folk_song"),
-      textOutput("landscape")
-    ),
-    mainPanel(
-      leafletOutput("map", height = 600)
+ui <- dashboardPage(
+  dashboardHeader(title = "中国地方文化地图"),
+  dashboardSidebar(
+    sidebarMenu(
+      menuItem("民歌地图 🎵", tabName = "folk", icon = icon("music")),
+      menuItem("文明地图 🏺", tabName = "civilization", icon = icon("globe-asia"))
+    )
+  ),
+  dashboardBody(
+    tabItems(
+      # 🎵 民歌地图页面
+      tabItem(tabName = "folk",
+              fluidRow(
+                box(width = 8,
+                    leafletOutput("folkMap", height = 600)),
+                box(width = 4,
+                    title = "🎶 省份民歌播放",
+                    textOutput("selected_province"),
+                    textOutput("selected_song"),
+                    uiOutput("audio_player"))
+              )
+      ),
+      
+      # 🏺 文明地图页面
+      tabItem(tabName = "civilization",
+              fluidRow(
+                box(width = 8,
+                    leafletOutput("civilizationMap", height = 600)),
+                box(width = 4,
+                    title = "🏺 文明类型信息",
+                    textOutput("selected_civ_province"),
+                    textOutput("selected_civ_type"),
+                    textOutput("selected_civ_intro"),
+                    textOutput("selected_civ_pinyin"))
+              )
+      )
     )
   )
 )
 
-# -----------------------
-# 3. 服务器逻辑
-# -----------------------
+# -------------------------------
+# 3️⃣ 服务器逻辑
+# -------------------------------
+# 让Shiny知道音频文件在哪
+addResourcePath("audio", "data/audio")
+
+output$audio_player <- renderUI({
+  tags$audio(
+    controls = TRUE,
+    src = paste0("audio/", info$AudioFile),
+    type = "audio/mp3"
+  )
+})
+
 server <- function(input, output, session) {
   
-  # 绘制地图
-  output$map <- renderLeaflet({
+  # 民歌地图
+  output$folkMap <- renderLeaflet({
     leaflet(china_data) %>%
-      addProviderTiles(providers$CartoDB.Positron) %>%
+      addTiles() %>%
       addPolygons(
-        layerId = ~NAME_1,
-        fillColor = "lightblue",
+        fillColor = "orange",
         color = "white",
         weight = 1,
-        highlight = highlightOptions(weight = 2, color = "blue"),
-        label = ~NAME_1
+        opacity = 1,
+        fillOpacity = 0.7,
+        layerId = ~Province_CN,
+        label = ~paste0(Province_CN, " - ", FolkSong_CN)
       )
   })
   
-  # 监听点击事件
-  observeEvent(input$map_shape_click, {
-    click <- input$map_shape_click
-    if (is.null(click)) return()
+  observeEvent(input$folkMap_shape_click, {
+    province <- input$folkMap_shape_click$id
+    info <- china_data %>% filter(Province_CN == province)
     
-    selected <- china_data %>% filter(NAME_1 == click$id)
+    output$selected_province <- renderText({ paste("省份：", info$Province_CN) })
+    output$selected_song <- renderText({ paste("歌曲：", info$FolkSong_CN) })
+    output$audio_player <- renderUI({
+      tags$audio(
+        controls = TRUE,
+        src = paste0("data/audio/", info$AudioFile),
+        type = "audio/mp3"
+      )
+    })
+  })
+  
+  # 文明地图
+  output$civilizationMap <- renderLeaflet({
+    leaflet(china_civilization) %>%
+      addTiles() %>%
+      addPolygons(
+        fillColor = "lightblue",
+        color = "white",
+        weight = 1,
+        opacity = 1,
+        fillOpacity = 0.7,
+        layerId = ~Province_CN,
+        label = ~paste0(Province_CN, " - ", `文明类型(Civilization Type)`)
+      )
+  })
+  
+  observeEvent(input$civilizationMap_shape_click, {
+    province <- input$civilizationMap_shape_click$id
+    info <- china_civilization %>% filter(Province_CN == province)
     
-    output$province_name <- renderText({
-      paste("Province:", selected$NAME_1)
-    })
-    output$folk_song <- renderText({
-      paste("Representative Folk Song:", selected$FolkSong)
-    })
-    output$landscape <- renderText({
-      paste("Typical Landscape:", selected$Landscape)
-    })
+    output$selected_civ_province <- renderText({ paste("省份：", info$Province_CN) })
+    output$selected_civ_type <- renderText({ paste("文明类型：", info$`文明类型(Civilization Type)`) })
+    output$selected_civ_intro <- renderText({ paste("文化简介：", info$`中文文化简介(CN Overview)`) })
+    output$selected_civ_pinyin <- renderText({ paste("拼音：", info$汉语拼音) })
   })
 }
 
-# -----------------------
-# 4. 启动应用
-# -----------------------
+# -------------------------------
+# 4️⃣ 启动应用
+# -------------------------------
 shinyApp(ui, server)
+
+
+
+
+

@@ -1,4 +1,5 @@
 # Interactive-Culture-Map
+
 ---
 
 ## 🇨🇳 中国文明与民歌交互式地图
@@ -76,18 +77,19 @@ Users can click any province on the map to view its representative folk song, ma
 1. 克隆项目到本地
 
 2. 在 R 中打开项目并安装依赖包
-
+   
    ```r
    install.packages(c("shiny", "shinydashboard", "leaflet", "sf", "terra", "dplyr", "readxl"))
    ```
 
 3. 运行主程序
-
+   
    ```r
    shiny::runApp("app.R")
    ```
 
 4. 打开浏览器查看效果
+
 ---
 
 ### 🌏 项目结构 | Project Structure
@@ -97,7 +99,7 @@ Interactive-Culture-Map/
 │
 ├── app.R                     # Shiny 主程序
 ├── data/
-│   ├── china_province.geojson
+│   ├── china_provinces.geojson
 │   ├── province_info.xlsx     # 含省名、拼音、民歌、文明类型、音频链接
 │   └── dem/                   # 存放DEM地形数据
 │
