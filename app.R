@@ -69,7 +69,8 @@ china_data <- china %>%
 civilization_table <- read_excel("data/civilization.xlsx")
 china_civilization <- left_join(china, civilization_table, by = "Province_CN")
 
-
+# 2️⃣ UI部分
+# -------------------------------
 ui <- dashboardPage(
   dashboardHeader(title = "中国地方文化地图"),
   dashboardSidebar(
@@ -79,6 +80,20 @@ ui <- dashboardPage(
     )
   ),
   dashboardBody(
+    tags$head(
+      # 加载前端JS逻辑
+      tags$script(HTML("
+        Shiny.addCustomMessageHandler('playAudio', function(filePath) {
+          var audioPlayer = document.getElementById('player');
+          if (audioPlayer) {
+            audioPlayer.src = filePath;
+            audioPlayer.load();
+            audioPlayer.play();
+          }
+        });
+      "))
+    ),
+    
     tabItems(
       # 🎵 民歌地图页面
       tabItem(tabName = "folk",
@@ -90,7 +105,8 @@ ui <- dashboardPage(
                     textOutput("selected_province"),
                     textOutput("selected_song_title_en"),
                     textOutput("selected_song"),
-                    uiOutput("audio_player"))
+                    tags$audio(id = "player", controls = TRUE)  # 固定一个音频播放器
+                )
               )
       ),
       
@@ -115,20 +131,40 @@ ui <- dashboardPage(
 # -------------------------------
 # 3️⃣ 服务器逻辑
 # -------------------------------
-
-
 server <- function(input, output, session) {
   
-  # 民歌地图
+  info <- reactiveVal(NULL)
   
-  output$audio_player <- renderUI({
-    tags$audio(
-      controls = TRUE,
-      src = paste0("audio/", info$AudioFile),
-      type = "audio/mp3"
+  # 点击民歌地图
+  observeEvent(input$folkMap_shape_click, {
+    province <- input$folkMap_shape_click$id
+    info_subset <- china_data %>% filter(Province_CN == province)
+    info(info_subset)
+    
+    # 发送消息给前端，更新播放器
+    session$sendCustomMessage(
+      "playAudio",
+      paste0("audio/", info_subset$AudioFile)
     )
   })
   
+  # 显示文字
+  output$selected_province <- renderText({
+    req(info())
+    paste("省份：", info()$Province_CN, " Shengfen:", info()$Province_PY)
+  })
+  
+  output$selected_song <- renderText({
+    req(info())
+    paste("歌曲：", info()$FolkSong_CN, " Pinyin:", info()$FolkSong_PY)
+  })
+  
+  output$selected_song_title_en <- renderText({
+    req(info())
+    paste("Song Title (EN):", info()$FolkSong_EN)
+  })
+  
+  # 民歌地图
   output$folkMap <- renderLeaflet({
     leaflet(china_data) %>%
       addTiles() %>%
@@ -143,22 +179,6 @@ server <- function(input, output, session) {
       )
   })
   
-  observeEvent(input$folkMap_shape_click, {
-    province <- input$folkMap_shape_click$id
-    info <- china_data %>% filter(Province_CN == province)
-
-    output$selected_province <- renderText({ paste("省份：", info$Province_CN, "Pinyin: ", info$Province_PY) })
-    output$selected_song <- renderText({ paste("歌曲：", info$FolkSong_CN, "Pinyin: ", info$FolkSong_PY) })
-    output$selected_song_title_en <- renderText({ paste("Song Title (EN):", info$FolkSong_EN) })
-    output$audio_player <- renderUI({
-      tags$audio(
-        controls = TRUE,
-        src = paste0("audio/", info$AudioFile),
-        type = "audio/mp3"
-      )
-    })
-  })
-  
   # 文明地图
   output$civilizationMap <- renderLeaflet({
     leaflet(china_civilization) %>%
@@ -170,19 +190,19 @@ server <- function(input, output, session) {
         opacity = 1,
         fillOpacity = 0.6,
         layerId = ~Province_CN,
-        label = ~paste0(Province_CN, " - ", `文明类型(Civilization Type)`)
+        label = ~paste0(Province_CN, ' - ', `文明类型(Civilization Type)`)
       )
   })
   
   observeEvent(input$civilizationMap_shape_click, {
     province <- input$civilizationMap_shape_click$id
-    info <- china_civilization %>% filter(Province_CN == province)
+    info_civ <- china_civilization %>% filter(Province_CN == province)
     
-    output$selected_civ_province <- renderText({ paste("省份：", info$Province_CN) })
-    output$selected_civ_type <- renderText({ paste("文明类型：", info$`文明类型(Civilization Type)`) })
-    output$selected_civ_intro <- renderText({ paste("文化简介：", info$`中文文化简介(CN Overview)`) })
-    output$selected_civ_pinyin <- renderText({ paste("拼音：", info$汉语拼音) })
-    output$selected_civ_intro_en <- renderText({ paste("Overview (EN):", info$`English Summary`) })
+    output$selected_civ_province <- renderText({ paste("省份：", info_civ$Province_CN) })
+    output$selected_civ_type <- renderText({ paste("文明类型：", info_civ$`文明类型(Civilization Type)`) })
+    output$selected_civ_intro <- renderText({ paste("文化简介：", info_civ$`中文文化简介(CN Overview)`) })
+    output$selected_civ_pinyin <- renderText({ paste("拼音：", info_civ$汉语拼音) })
+    output$selected_civ_intro_en <- renderText({ paste("Overview (EN):", info_civ$`English Summary`) })
   })
 }
 
@@ -190,8 +210,5 @@ server <- function(input, output, session) {
 # 4️⃣ 启动应用
 # -------------------------------
 shinyApp(ui, server)
-
-
-
 
 
