@@ -88,6 +88,7 @@ ui <- dashboardPage(
                 box(width = 4,
                     title = "🎶 省份民歌播放",
                     textOutput("selected_province"),
+                    textOutput("selected_song_title_en"),
                     textOutput("selected_song"),
                     uiOutput("audio_player"))
               )
@@ -103,6 +104,7 @@ ui <- dashboardPage(
                     textOutput("selected_civ_province"),
                     textOutput("selected_civ_type"),
                     textOutput("selected_civ_intro"),
+                    textOutput("selected_civ_intro_en"),
                     textOutput("selected_civ_pinyin"))
               )
       )
@@ -144,9 +146,10 @@ server <- function(input, output, session) {
   observeEvent(input$folkMap_shape_click, {
     province <- input$folkMap_shape_click$id
     info <- china_data %>% filter(Province_CN == province)
-    
-    output$selected_province <- renderText({ paste("省份：", info$Province_CN) })
-    output$selected_song <- renderText({ paste("歌曲：", info$FolkSong_CN) })
+
+    output$selected_province <- renderText({ paste("省份：", info$Province_CN, "Pinyin: ", info$Province_PY) })
+    output$selected_song <- renderText({ paste("歌曲：", info$FolkSong_CN, "Pinyin: ", info$FolkSong_PY) })
+    output$selected_song_title_en <- renderText({ paste("Song Title (EN):", info$FolkSong_EN) })
     output$audio_player <- renderUI({
       tags$audio(
         controls = TRUE,
@@ -161,11 +164,11 @@ server <- function(input, output, session) {
     leaflet(china_civilization) %>%
       addTiles() %>%
       addPolygons(
-        fillColor = "blue",
+        fillColor = "purple",
         color = "white",
         weight = 1,
         opacity = 1,
-        fillOpacity = 0.7,
+        fillOpacity = 0.6,
         layerId = ~Province_CN,
         label = ~paste0(Province_CN, " - ", `文明类型(Civilization Type)`)
       )
@@ -179,6 +182,7 @@ server <- function(input, output, session) {
     output$selected_civ_type <- renderText({ paste("文明类型：", info$`文明类型(Civilization Type)`) })
     output$selected_civ_intro <- renderText({ paste("文化简介：", info$`中文文化简介(CN Overview)`) })
     output$selected_civ_pinyin <- renderText({ paste("拼音：", info$汉语拼音) })
+    output$selected_civ_intro_en <- renderText({ paste("Overview (EN):", info$`English Summary`) })
   })
 }
 
